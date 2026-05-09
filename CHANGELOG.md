@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.1.0] — 2026-05-09
+
+### Added
+
+- **Inline composer direction control** — a `⇄ Auto` / `← RTL` / `LTR →` pill
+  button is injected into the ChatGPT input area, positioned in the top-right
+  corner of the input's nearest positioned ancestor
+  - Cycles Auto → RTL → LTR → Auto on each click
+  - Turns green when RTL or LTR is active; gray/neutral in Auto mode
+  - Syncs bidirectionally with the popup in real time via `chrome.storage`
+  - Survives ChatGPT SPA navigation: re-injected automatically when the
+    observer detects mutations outside the message area
+  - Duplicate-safe: only one control exists at a time
+  - Accessible: `aria-label`, `title` tooltip, `:focus-visible` outline
+
+### Fixed
+
+- Force-mode direction now applies to an **empty input** immediately when the
+  mode is changed — previously `processInput` returned early on empty text,
+  leaving the input's direction unchanged until the user started typing
+
+---
+
 ## [1.0.0] — 2026-05-09
 
 ### Added

@@ -121,6 +121,43 @@ verify the typing direction switches in real time.
 
 ---
 
+## Markdown Mixed-Content Test Cases
+
+These scenarios verify that Markdown structure does not confuse direction detection.
+Paste each into ChatGPT (or read from an assistant reply) and check the column.
+
+| Scenario | Input / prompt | Expected result |
+|---|---|---|
+| **RTL table cell** | A Markdown table with a Persian cell: `\| سلام \| Hello \|` | Each cell independently RTL or LTR |
+| **Mixed-direction table** | Row with `\| کد \| npm install \|` | First cell RTL, second cell LTR |
+| **`kbd` inside RTL** | `برای ذخیره فایل <kbd>Ctrl+S</kbd> را بزنید` | Sentence RTL; `Ctrl+S` stays LTR and readable |
+| **Inline code in RTL** | `` متغیر `count` را افزایش بده `` | Block RTL; `` `count` `` stays LTR |
+| **URL inside RTL sentence** | `برای بازدید به https://example.com بروید` | Sentence RTL; URL stays LTR, not reversed |
+| **RTL heading** | `## نتیجه‌گیری` | `<h2>` gets `dir="rtl"` |
+| **Code block in RTL context** | Persian paragraph followed by a fenced code block | Paragraph RTL; code block always LTR regardless |
+
+---
+
+## Inline Composer Direction Control
+
+A small pill button is automatically injected into the ChatGPT input area,
+giving you one-click direction switching without opening the popup.
+
+| Button label | Mode | Behavior |
+|---|---|---|
+| `⇄ Auto` | Auto-detect | Direction is detected from what you type |
+| `← RTL` | Force RTL | All input text is right-to-left |
+| `LTR →` | Force LTR | All input text is left-to-right |
+
+**Clicking cycles:** Auto → RTL → LTR → Auto
+
+- The button turns green when RTL or LTR is active
+- Hovering shows a tooltip with the keyboard shortcut reminder
+- The selected mode is saved and immediately reflected in the popup
+- The button re-appears automatically after ChatGPT SPA navigation
+
+---
+
 ## Popup Controls
 
 | Control | Description |

@@ -19,14 +19,12 @@
   text-align: left;
 }
 
-/* ── Code blocks always stay LTR ─────────────────────────────────────────── */
+/* ── Block-level code always stays LTR ───────────────────────────────────── */
 /* Applied both via JS (.cgpt-code-ltr) and CSS descendant rules so that
    neither alone can be defeated by specificity issues. */
 .cgpt-code-ltr,
 .cgpt-rtl pre,
-.cgpt-rtl code,
 pre[class*="language-"],
-code[class*="language-"],
 .cgpt-rtl .hljs,
 .cgpt-rtl [class*="language-"],
 .cgpt-rtl .cm-content,
@@ -34,6 +32,24 @@ code[class*="language-"],
   direction:    ltr !important;
   text-align:   left !important;
   unicode-bidi: normal !important;
+}
+
+/* ── Inline code, keyboard keys, sample output ───────────────────────────── */
+/* `unicode-bidi: isolate` wraps each element in its own bidi scope so that
+   an LTR snippet inside an RTL paragraph renders in the correct reading order
+   without leaking into the surrounding text. */
+.cgpt-rtl code,
+.cgpt-rtl kbd,
+.cgpt-rtl samp,
+code[class*="language-"] {
+  direction:    ltr !important;
+  unicode-bidi: isolate !important;
+}
+
+/* ── Links / URLs inside RTL text ────────────────────────────────────────── */
+/* Isolate each anchor so that LTR URLs don't disrupt RTL sentence flow. */
+.cgpt-rtl a {
+  unicode-bidi: isolate;
 }
 
 /* ── Protect interactive controls inside RTL containers ──────────────────── */
@@ -55,4 +71,84 @@ div[contenteditable].cgpt-rtl,
 textarea.cgpt-rtl {
   direction:  rtl;
   text-align: right;
+}
+
+/* ── Composer direction control pill ────────────────────────────────────── */
+/* Fixed to the viewport, positioned just above the composer form via JS    */
+/* (one getBoundingClientRect call on injection, re-read on resize/SPA).    */
+/* Lives in document.body so it is never clipped by composer overflow.      */
+.cgpt-dir-ctrl {
+  position: fixed;
+  /* bottom and right are set inline by JS */
+  z-index: 10;
+
+  display:       inline-flex;
+  align-items:   center;
+  height:        24px;
+  padding:       0 10px;
+
+  border:        1.5px solid #d1d5db;
+  border-radius: 12px;
+  background:    rgba(255, 255, 255, 0.96);
+  box-shadow:    0 1px 6px rgba(0, 0, 0, 0.10);
+
+  color:         #6b7280;
+  font-size:     11px;
+  font-weight:   600;
+  font-family:   inherit;
+  letter-spacing: 0.04em;
+  white-space:   nowrap;
+  cursor:        pointer;
+  user-select:   none;
+  pointer-events: auto;
+
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+/* Narrow viewport — prevent button from being hidden off-screen */
+@media (max-width: 480px) {
+  .cgpt-dir-ctrl {
+    font-size: 10px;
+    height:    22px;
+    padding:   0 8px;
+  }
+}
+
+.cgpt-dir-ctrl:hover {
+  color:         #10a37f;
+  border-color:  #10a37f;
+}
+
+.cgpt-dir-ctrl:focus-visible {
+  outline:        2px solid #10a37f;
+  outline-offset: 2px;
+}
+
+/* RTL or LTR mode — highlight in ChatGPT green */
+.cgpt-dir-ctrl[data-mode="rtl"],
+.cgpt-dir-ctrl[data-mode="ltr"] {
+  color:        #10a37f;
+  border-color: #10a37f;
+  background:   rgba(16, 163, 127, 0.09);
+}
+
+/* Dark mode */
+html.dark .cgpt-dir-ctrl,
+.dark .cgpt-dir-ctrl {
+  background:   rgba(32, 33, 35, 0.92);
+  border-color: #4a4a4a;
+  color:        #9ca3af;
+}
+html.dark .cgpt-dir-ctrl:hover,
+.dark .cgpt-dir-ctrl:hover {
+  color:        #10a37f;
+  border-color: #10a37f;
+}
+html.dark .cgpt-dir-ctrl[data-mode="rtl"],
+html.dark .cgpt-dir-ctrl[data-mode="ltr"],
+.dark .cgpt-dir-ctrl[data-mode="rtl"],
+.dark .cgpt-dir-ctrl[data-mode="ltr"] {
+  color:        #10a37f;
+  border-color: #10a37f;
+  background:   rgba(16, 163, 127, 0.13);
 }

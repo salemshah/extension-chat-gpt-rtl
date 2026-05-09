@@ -43,10 +43,14 @@
 
   // ── Constants ─────────────────────────────────────────────────────────────
 
-  const STORAGE_KEY   = 'cgptRtlSettings';
-  const RTL_THRESHOLD = 0.30;
-  const DEBOUNCE_MS   = 160;
-  const INIT_DELAY_MS = 700;
+  const STORAGE_KEY      = 'cgptRtlSettings';
+  const DIR_CONTROL_ATTR = 'data-cgpt-dir-control';
+  const RTL_THRESHOLD    = 0.30;
+  const DEBOUNCE_MS      = 160;
+  const INIT_DELAY_MS    = 700;
+
+  const DIR_MODE_CYCLE  = { auto: 'rtl', rtl: 'ltr', ltr: 'auto' };
+  const DIR_MODE_LABELS = { auto: '⇄ Auto', rtl: '← RTL', ltr: 'LTR →' };
 
   const DEFAULTS = {
     enabled:    true,
@@ -56,16 +60,19 @@
 
   // Unicode ranges: Hebrew, Arabic (incl. Persian/Urdu), Syriac, Thaana,
   // N'Ko, Samaritan, Arabic Extended-A, presentation forms.
-  const RTL_RE = /[֐-׿؀-ۿ܀-ݏݐ-ݿ߀-߿ࢠ-ࣿיִ-ﭏﭐ-﷿ﹰ-﻿]/;
-  const LTR_RE = /[A-Za-zÀ-ɏͰ-ϿЀ-ӿ]/;
+  // The `g` flag lets String.prototype.match() count all occurrences in one
+  // native pass instead of per-character JS loop calls.
+  const RTL_RE = /[֐-׿؀-ۿ܀-ݏݐ-ݿ߀-߿ࢠ-ࣿיִ-ﭏﭐ-﷿ﹰ-﻿]/g;
+  const LTR_RE = /[A-Za-zÀ-ɏͰ-ϿЀ-ӿ]/g;
 
   // ── State ─────────────────────────────────────────────────────────────────
 
   let settings    = { ...DEFAULTS };
   let settingsGen = 0;          // bumped on every settings change; invalidates textCache
-  let scanTimer   = null;
-  let domObserver = null;
-  let initialized = false;      // guards against double-init on SPA re-entry
+  let scanTimer     = null;
+  let domObserver   = null;
+  let composerTimer = null;
+  let initialized   = false;      // guards against double-init on SPA re-entry
 
   // Per-element text cache (WeakMap — GC'd automatically when elements leave the DOM).
   // Stored value: { raw: string, gen: number }
@@ -87,20 +94,7 @@
     '.group\\/conversation-turn',
   ].join(', ');
 
-  const BLOCK_SEL = 'p, li, blockquote, dt, dd, h1, h2, h3, h4, h5, h6';
-
-  const ALWAYS_SKIP_SEL = [
-    'pre', 'code',
-    'nav', 'header', 'aside',
-    'button', '[role="button"]',
-    '[role="navigation"]', '[role="menubar"]', '[role="toolbar"]',
-    '[role="menu"]', '[role="menuitem"]',
-    '[role="complementary"]',
-    '[role="dialog"]',
-    '[role="search"]',
-    '[aria-haspopup]',
-    '[data-testid*="copy"]',
-  ].join(', ');
+  const BLOCK_SEL = 'p, li, blockquote, dt, dd, h1, h2, h3, h4, h5, h6, td, th';
 
   const INPUT_SEL = [
     '#prompt-textarea',
@@ -128,12 +122,15 @@
 
   function detectDirection(text) {
     if (!text) return null;
-    let rtl = 0, ltr = 0;
-    for (const ch of text) {
-      if (RTL_RE.test(ch)) rtl++;
-      else if (LTR_RE.test(ch)) ltr++;
-    }
-    const total = rtl + ltr;
+    // Cap at 200 chars — sufficient signal for the 30 % threshold.
+    // String.prototype.match with a /g regex is a single native scan,
+    // much faster than calling .test() per character in a JS loop.
+    const t    = text.length > 200 ? text.slice(0, 200) : text;
+    const rtlM = t.match(RTL_RE);
+    if (!rtlM) return null;                     // no RTL chars → skip LTR count
+    const ltrM  = t.match(LTR_RE);
+    const rtl   = rtlM.length;
+    const total = rtl + (ltrM ? ltrM.length : 0);
     if (total === 0) return null;
     return rtl / total >= RTL_THRESHOLD ? 'rtl' : 'ltr';
   }
@@ -142,7 +139,7 @@
   // Called only when the fast-path cache check fails.
   function textWithoutCode(el) {
     const clone = el.cloneNode(true);
-    safeQSA(clone, 'pre, code').forEach(n => n.remove());
+    safeQSA(clone, 'pre, code, kbd, samp').forEach(n => n.remove());
     return clone.textContent ?? '';
   }
 
@@ -181,24 +178,33 @@
   // ── Block processing ──────────────────────────────────────────────────────
 
   function processBlock(el) {
-    if (safeClosest(el, ALWAYS_SKIP_SEL)) return;
+    // Force mode: direction is fixed regardless of content.
+    // applyDir early-exits when the element is already in the right state,
+    // so repeated calls during streaming are essentially free.
+    if (settings.forceMode !== 'auto') {
+      applyDir(el, settings.forceMode);
+      return;
+    }
 
-    // Fast path: read textContent (cheap, no cloneNode) and compare to cache.
-    // If raw text AND settingsGen are both unchanged, the classification
-    // cannot have changed — skip immediately.
+    // Auto mode, auto-detect off: nothing to do.
+    if (!settings.autoDetect) return;
+
+    // Fast path: if raw text and settingsGen are both unchanged, the result
+    // cannot have changed — skip the expensive cloneNode entirely.
     const raw = el.textContent ?? '';
     if (!raw.trim()) return;
 
     const cached = textCache.get(el);
     if (cached && cached.raw === raw && cached.gen === settingsGen) return;
 
-    // Slow path: strip code descendants, then classify.
-    const text = textWithoutCode(el);   // cloneNode only when necessary
+    // Slow path: strip code subtrees, classify, cache.
+    const text = textWithoutCode(el);
     textCache.set(el, { raw, gen: settingsGen });
     if (!text.trim()) return;
 
-    const dir = resolveDir(text);
+    const dir = detectDirection(text);
     if (dir) applyDir(el, dir);
+    else clearDir(el); // remove any stale direction from a prior force mode
   }
 
   function processMessageContainer(container) {
@@ -219,6 +225,12 @@
       blocks.forEach(processBlock);
     } else {
       // Fallback: container has no block descendants (plain-text user message).
+      if (settings.forceMode !== 'auto') {
+        applyDir(container, settings.forceMode);
+        return;
+      }
+      if (!settings.autoDetect) return;
+
       const raw = container.textContent ?? '';
       if (!raw.trim()) return;
 
@@ -229,7 +241,7 @@
       textCache.set(container, { raw, gen: settingsGen });
       if (!text.trim()) return;
 
-      const dir = resolveDir(text);
+      const dir = detectDirection(text);
       if (dir) applyDir(container, dir);
     }
   }
@@ -238,13 +250,96 @@
     safeQSA(document, MSG_SEL).forEach(processMessageContainer);
   }
 
+  // ── Composer direction control ─────────────────────────────────────────────
+  // A small pill button injected into the nearest positioned ancestor of the
+  // ChatGPT input.  Cycles Auto → RTL → LTR → Auto on click.
+  // Stays in sync with the popup and keyboard shortcuts via storage events.
+  // Survives SPA navigation: re-injected via scheduleComposerCheck() whenever
+  // mutations fall outside the message area (= likely navigation).
+
+  function syncComposerControl(btn) {
+    const el = btn || document.querySelector(`[${DIR_CONTROL_ATTR}]`);
+    if (!el) return;
+    const mode = settings.forceMode ?? 'auto';
+    el.textContent = DIR_MODE_LABELS[mode] ?? DIR_MODE_LABELS.auto;
+    el.setAttribute('aria-label',
+      `Input direction: ${mode}. Click to switch to ${DIR_MODE_CYCLE[mode]}.`);
+    el.dataset.mode = mode;
+  }
+
+  function ensureComposerDirectionControl() {
+    // Fast path: control is present — just refresh its label and return.
+    const existing = document.querySelector(`[${DIR_CONTROL_ATTR}]`);
+    if (existing) { syncComposerControl(existing); return; }
+
+    if (!settings.enabled) return;
+
+    const input = document.querySelector(INPUT_SEL);
+    if (!input) return;
+
+    const form = safeClosest(input, 'form');
+    if (!form) return;
+
+    // Read layout exactly once to position the fixed button above the composer.
+    // The button is appended to document.body so it escapes any overflow:hidden
+    // on the composer's ancestor chain and never overlaps native controls.
+    const rect = form.getBoundingClientRect();
+    if (!rect.width) return; // form not yet laid out
+
+    const btn = document.createElement('button');
+    btn.setAttribute(DIR_CONTROL_ATTR, 'true');
+    btn.type      = 'button';
+    btn.className = 'cgpt-dir-ctrl';
+    btn.title     = 'Cycle input direction: Auto → RTL → LTR → Auto\n(Alt+Shift+R / L / A)';
+
+    // Place button just above the composer, aligned to the form's right edge.
+    // Min 8 px from viewport edges for narrow screens.
+    btn.style.bottom = Math.round(window.innerHeight - rect.top + 8)  + 'px';
+    btn.style.right  = Math.round(Math.max(8, window.innerWidth - rect.right + 8)) + 'px';
+
+    syncComposerControl(btn);
+
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!settings.enabled) return;
+      const newMode = DIR_MODE_CYCLE[settings.forceMode] ?? 'auto';
+      settings    = { ...settings, forceMode: newMode };
+      settingsGen++;
+      fullScan(); // re-classifies messages, input, and syncs this button
+      storageGetCb(STORAGE_KEY, result => {
+        const s = { ...DEFAULTS, ...(result[STORAGE_KEY] ?? {}) };
+        s.forceMode = newMode;
+        storageSet({ [STORAGE_KEY]: s });
+      });
+    });
+
+    document.body.appendChild(btn);
+  }
+
+  function handleResize() {
+    // Remove the stale fixed-position button so ensureComposerDirectionControl
+    // re-reads getBoundingClientRect and re-injects with fresh coordinates.
+    const ctrl = document.querySelector(`[${DIR_CONTROL_ATTR}]`);
+    if (ctrl) ctrl.remove();
+    scheduleComposerCheck();
+  }
+
+  function scheduleComposerCheck() {
+    clearTimeout(composerTimer);
+    composerTimer = setTimeout(ensureComposerDirectionControl, DEBOUNCE_MS);
+  }
+
   // ── Input processing ──────────────────────────────────────────────────────
 
   function processInput(el) {
     const text = el.textContent ?? el.value ?? '';
-    if (!text.trim()) { clearDir(el); return; }
+    // resolveDir handles force modes — always call it so that an empty input
+    // in RTL/LTR mode still gets the forced direction applied before the user
+    // types anything.
     const dir = resolveDir(text);
     if (dir) applyDir(el, dir);
+    else clearDir(el);
   }
 
   function processAllInputs() {
@@ -257,6 +352,7 @@
     if (!settings.enabled) return;
     processAllMessages();
     processAllInputs();
+    ensureComposerDirectionControl();
   }
 
   // ── Targeted scan — mutation-driven ──────────────────────────────────────
@@ -321,7 +417,12 @@
     if (domObserver) domObserver.disconnect();
     domObserver = new MutationObserver(mutations => {
       const containers = findAffectedContainers(mutations);
-      if (containers.size === 0) return; // mutations are outside message area — skip
+      if (containers.size === 0) {
+        // Mutations outside the message area — could be SPA navigation that
+        // unmounted the composer. Re-check for the direction control.
+        scheduleComposerCheck();
+        return;
+      }
       containers.forEach(c => pendingContainers.add(c));
       scheduleTargetedScan();
     });
@@ -371,8 +472,10 @@
     settingsGen++;   // invalidate text cache
     if (!settings.enabled) {
       safeQSA(document, '.cgpt-rtl, .cgpt-ltr').forEach(clearDir);
+      const ctrl = document.querySelector(`[${DIR_CONTROL_ATTR}]`);
+      if (ctrl) ctrl.remove();
     } else {
-      fullScan();
+      fullScan(); // fullScan calls ensureComposerDirectionControl
     }
   }
 
@@ -398,6 +501,7 @@
       startObserver();
       document.addEventListener('input',   handleInput,   true);
       document.addEventListener('keydown', handleKeydown, true);
+      window.addEventListener('resize',    handleResize);
       fullScan();
     });
   }
