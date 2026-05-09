@@ -1,0 +1,58 @@
+/* ── ChatGPT RTL Support ── injected into chatgpt.com ────────────────────── */
+
+/* RTL text block – paragraphs, list items, headings, input areas */
+.cgpt-rtl {
+  direction: rtl;
+  text-align: right;
+  /* Prefer system fonts with good Arabic / Persian glyph coverage */
+  font-family:
+    system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Tahoma,
+    "Noto Naskh Arabic", "Noto Sans Arabic", "Noto Serif Arabic",
+    "Arabic Typesetting", "Traditional Arabic",
+    Arial, sans-serif;
+}
+
+/* LTR restore – for elements we've explicitly classified */
+.cgpt-ltr {
+  direction: ltr;
+  text-align: left;
+}
+
+/* ── Code blocks always stay LTR ─────────────────────────────────────────── */
+/* Applied both via JS (.cgpt-code-ltr) and CSS descendant rules so that
+   neither alone can be defeated by specificity issues. */
+.cgpt-code-ltr,
+.cgpt-rtl pre,
+.cgpt-rtl code,
+pre[class*="language-"],
+code[class*="language-"],
+.cgpt-rtl .hljs,
+.cgpt-rtl [class*="language-"],
+.cgpt-rtl .cm-content,
+.cgpt-rtl .cm-line {
+  direction:    ltr !important;
+  text-align:   left !important;
+  unicode-bidi: normal !important;
+}
+
+/* ── Protect interactive controls inside RTL containers ──────────────────── */
+/* Copy buttons, action menus, dropdowns, and other Chrome-rendered UI must
+   stay LTR so their labels / icons are never mirrored. */
+.cgpt-rtl button,
+.cgpt-rtl [role="button"],
+.cgpt-rtl [role="menuitem"],
+.cgpt-rtl [role="option"],
+.cgpt-rtl [aria-haspopup],
+.cgpt-rtl select,
+.cgpt-rtl label {
+  direction:    ltr !important;
+  unicode-bidi: normal !important;
+}
+
+/* ── RTL contenteditable / textarea input ────────────────────────────────── */
+div[contenteditable].cgpt-rtl,
+textarea.cgpt-rtl {
+  direction:  rtl;
+  text-align: right;
+}
