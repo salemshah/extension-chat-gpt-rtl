@@ -140,8 +140,9 @@ Paste each into ChatGPT (or read from an assistant reply) and check the column.
 
 ## Inline Composer Direction Control
 
-A small pill button is automatically injected into the ChatGPT input area,
-giving you one-click direction switching without opening the popup.
+A small button is inserted immediately after the native **+** (add files)
+button in the ChatGPT composer toolbar, giving you one-click direction
+switching without opening the popup.
 
 | Button label | Mode | Behavior |
 |---|---|---|
@@ -151,6 +152,7 @@ giving you one-click direction switching without opening the popup.
 
 **Clicking cycles:** Auto → RTL → LTR → Auto
 
+- Lives inside the composer's own flex row — typed text never flows under it
 - The button turns green when RTL or LTR is active
 - Hovering shows a tooltip with the keyboard shortcut reminder
 - The selected mode is saved and immediately reflected in the popup

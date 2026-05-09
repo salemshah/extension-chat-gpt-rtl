@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.0] — 2026-05-09
+
+### Changed
+
+- **Composer direction control placement** — the Auto/RTL/LTR button is no
+  longer a floating fixed-position overlay; it is now inserted immediately
+  after `button[data-testid="composer-plus-btn"]` in the composer's own flex
+  row so long RTL text can never flow beneath it
+  - Class changed from `cgpt-dir-ctrl` to `cgpt-dir-control-inline`
+  - Positioning changed from `position: fixed` (viewport-anchored) to in-flow
+    flex child — no `z-index`, no `bottom`/`right` inline styles, no
+    `getBoundingClientRect()` call
+  - `direction: ltr !important; unicode-bidi: isolate !important` on the
+    button and all its children prevents RTL inheritance from the composer
+
+### Fixed
+
+- Composer layout corruption when RTL mode is active — the old code applied
+  `dir="rtl"` HTML attribute and `.cgpt-rtl` CSS class to the contenteditable
+  input, propagating `direction: rtl` via logical CSS properties into
+  absolutely-positioned send / mic / attach children and mirroring flex layout
+  - Input direction now uses isolated `.cgpt-input-rtl` / `.cgpt-input-ltr`
+    classes only; the HTML `dir` attribute is never set on the input element
+  - Explicit `direction: ltr !important` override on all interactive children
+    (button, [role="button"], svg, etc.) inside `.cgpt-input-rtl`
+
+### Removed
+
+- `position: fixed` and viewport-coordinate pill button CSS (`.cgpt-dir-ctrl`)
+- `handleResize` no longer removes and re-injects the button — resize only
+  triggers `scheduleComposerCheck` to verify presence
+
+---
+
 ## [1.2.0] — 2026-05-09
 
 ### Added

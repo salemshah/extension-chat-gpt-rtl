@@ -176,6 +176,27 @@
     el.classList.remove('cgpt-rtl', 'cgpt-ltr');
   }
 
+  // ── Input-specific direction helpers ─────────────────────────────────────
+  // These are SEPARATE from applyDir/clearDir.  They use dedicated classes
+  // (.cgpt-input-rtl / .cgpt-input-ltr) and never touch the HTML dir
+  // attribute — setting dir="rtl" on the input container propagates via
+  // logical CSS properties (inset-inline-end, etc.) into absolutely-
+  // positioned send / mic / attach children, physically shifting them.
+
+  function applyInputDir(el, dir) {
+    const add = dir === 'rtl' ? 'cgpt-input-rtl' : 'cgpt-input-ltr';
+    const rem = dir === 'rtl' ? 'cgpt-input-ltr' : 'cgpt-input-rtl';
+    if (el.classList.contains(add) && !el.classList.contains(rem)) return;
+    el.classList.add(add);
+    el.classList.remove(rem);
+  }
+
+  function clearInputDir(el) {
+    if (!el.classList.contains('cgpt-input-rtl') &&
+        !el.classList.contains('cgpt-input-ltr')) return;
+    el.classList.remove('cgpt-input-rtl', 'cgpt-input-ltr');
+  }
+
   // ── Block processing ──────────────────────────────────────────────────────
 
   function processBlock(el) {
@@ -252,11 +273,12 @@
   }
 
   // ── Composer direction control ─────────────────────────────────────────────
-  // A small pill button injected into the nearest positioned ancestor of the
-  // ChatGPT input.  Cycles Auto → RTL → LTR → Auto on click.
-  // Stays in sync with the popup and keyboard shortcuts via storage events.
+  // Inserted immediately after button[data-testid="composer-plus-btn"] so it
+  // lives inside the composer's own flex row — no fixed/absolute positioning,
+  // no overlap with typed text or send/mic buttons.
+  // Cycles Auto → RTL → LTR → Auto on click.
   // Survives SPA navigation: re-injected via scheduleComposerCheck() whenever
-  // mutations fall outside the message area (= likely navigation).
+  // the MutationObserver sees mutations outside the message area.
 
   function syncComposerControl(btn) {
     const el = btn || document.querySelector(`[${DIR_CONTROL_ATTR}]`);
@@ -269,34 +291,27 @@
   }
 
   function ensureComposerDirectionControl() {
-    // Fast path: control is present — just refresh its label and return.
-    const existing = document.querySelector(`[${DIR_CONTROL_ATTR}]`);
-    if (existing) { syncComposerControl(existing); return; }
-
     if (!settings.enabled) return;
 
-    const input = document.querySelector(INPUT_SEL);
-    if (!input) return;
+    // Anchor: the native "+" (add files) button that ChatGPT always renders.
+    const plusBtn = document.querySelector(
+      'button[data-testid="composer-plus-btn"], #composer-plus-btn'
+    );
+    if (!plusBtn) return;
 
-    const form = safeClosest(input, 'form');
-    if (!form) return;
+    const parent = plusBtn.parentElement;
+    if (!parent) return;
 
-    // Read layout exactly once to position the fixed button above the composer.
-    // The button is appended to document.body so it escapes any overflow:hidden
-    // on the composer's ancestor chain and never overlaps native controls.
-    const rect = form.getBoundingClientRect();
-    if (!rect.width) return; // form not yet laid out
+    // Duplicate guard: if our button already lives in this exact parent, just
+    // refresh its label and bail — do NOT append a second copy.
+    const existing = parent.querySelector(`[${DIR_CONTROL_ATTR}]`);
+    if (existing) { syncComposerControl(existing); return; }
 
     const btn = document.createElement('button');
     btn.setAttribute(DIR_CONTROL_ATTR, 'true');
     btn.type      = 'button';
-    btn.className = 'cgpt-dir-ctrl';
+    btn.className = 'composer-btn cgpt-dir-control-inline';
     btn.title     = 'Cycle input direction: Auto → RTL → LTR → Auto\n(Alt+Shift+R / L / A)';
-
-    // Place button just above the composer, aligned to the form's right edge.
-    // Min 8 px from viewport edges for narrow screens.
-    btn.style.bottom = Math.round(window.innerHeight - rect.top + 8)  + 'px';
-    btn.style.right  = Math.round(Math.max(8, window.innerWidth - rect.right + 8)) + 'px';
 
     syncComposerControl(btn);
 
@@ -315,14 +330,15 @@
       });
     });
 
-    document.body.appendChild(btn);
+    // Place immediately after the + button so it appears in the leading
+    // toolbar area, not at the far end near send/mic.
+    plusBtn.insertAdjacentElement('afterend', btn);
   }
 
   function handleResize() {
-    // Remove the stale fixed-position button so ensureComposerDirectionControl
-    // re-reads getBoundingClientRect and re-injects with fresh coordinates.
-    const ctrl = document.querySelector(`[${DIR_CONTROL_ATTR}]`);
-    if (ctrl) ctrl.remove();
+    // No fixed-position recalculation needed — the button is part of the
+    // composer's native flex layout.  Just re-check that it is still present
+    // (viewport resize can trigger a ChatGPT re-render on mobile).
     scheduleComposerCheck();
   }
 
@@ -335,12 +351,11 @@
 
   function processInput(el) {
     const text = el.textContent ?? el.value ?? '';
-    // resolveDir handles force modes — always call it so that an empty input
-    // in RTL/LTR mode still gets the forced direction applied before the user
-    // types anything.
+    // resolveDir handles force modes — always call so an empty input in RTL/LTR
+    // force mode gets the correct direction before the user types anything.
     const dir = resolveDir(text);
-    if (dir) applyDir(el, dir);
-    else clearDir(el);
+    if (dir) applyInputDir(el, dir);
+    else clearInputDir(el);
   }
 
   function processAllInputs() {
@@ -481,6 +496,7 @@
     applyTypographyClass();
     if (!settings.enabled) {
       safeQSA(document, '.cgpt-rtl, .cgpt-ltr').forEach(clearDir);
+      safeQSA(document, '.cgpt-input-rtl, .cgpt-input-ltr').forEach(clearInputDir);
       const ctrl = document.querySelector(`[${DIR_CONTROL_ATTR}]`);
       if (ctrl) ctrl.remove();
     } else {
