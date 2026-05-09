@@ -53,9 +53,10 @@
   const DIR_MODE_LABELS = { auto: '⇄ Auto', rtl: '← RTL', ltr: 'LTR →' };
 
   const DEFAULTS = {
-    enabled:    true,
-    autoDetect: true,
-    forceMode:  'auto',   // 'auto' | 'rtl' | 'ltr'
+    enabled:           true,
+    autoDetect:        true,
+    forceMode:         'auto',   // 'auto' | 'rtl' | 'ltr'
+    persianTypography: true,
   };
 
   // Unicode ranges: Hebrew, Arabic (incl. Persian/Urdu), Syriac, Thaana,
@@ -467,9 +468,17 @@
 
   // ── Settings ──────────────────────────────────────────────────────────────
 
+  function applyTypographyClass() {
+    document.body.classList.toggle(
+      'cgpt-persian-typography',
+      !!(settings.enabled && settings.persianTypography)
+    );
+  }
+
   function applySettings(incoming) {
     settings    = { ...DEFAULTS, ...incoming };
     settingsGen++;   // invalidate text cache
+    applyTypographyClass();
     if (!settings.enabled) {
       safeQSA(document, '.cgpt-rtl, .cgpt-ltr').forEach(clearDir);
       const ctrl = document.querySelector(`[${DIR_CONTROL_ATTR}]`);

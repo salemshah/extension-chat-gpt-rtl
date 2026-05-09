@@ -66,6 +66,44 @@ code[class*="language-"] {
   unicode-bidi: normal !important;
 }
 
+/* ── Persian / Arabic typography enhancement ─────────────────────────────── */
+/* Active only when body carries .cgpt-persian-typography (toggled by JS).    */
+/* Targets semantic RTL blocks — paragraphs, list items, headings, table      */
+/* cells — but never code, kbd, samp, or pre (those stay monospace + LTR).   */
+body.cgpt-persian-typography .cgpt-rtl p,
+body.cgpt-persian-typography .cgpt-rtl li,
+body.cgpt-persian-typography .cgpt-rtl blockquote,
+body.cgpt-persian-typography .cgpt-rtl dt,
+body.cgpt-persian-typography .cgpt-rtl dd,
+body.cgpt-persian-typography .cgpt-rtl h1,
+body.cgpt-persian-typography .cgpt-rtl h2,
+body.cgpt-persian-typography .cgpt-rtl h3,
+body.cgpt-persian-typography .cgpt-rtl h4,
+body.cgpt-persian-typography .cgpt-rtl h5,
+body.cgpt-persian-typography .cgpt-rtl h6,
+body.cgpt-persian-typography .cgpt-rtl td,
+body.cgpt-persian-typography .cgpt-rtl th {
+  font-family:
+    "Vazirmatn", "Vazir",
+    "IRANSans", "IRANSansWeb",
+    "Tahoma",
+    "Noto Naskh Arabic", "Noto Sans Arabic",
+    system-ui, -apple-system, sans-serif;
+  line-height:  1.9;
+  word-spacing: 0.03em;
+}
+
+/* Keep monospace intact inside typography-enhanced RTL blocks */
+body.cgpt-persian-typography .cgpt-rtl code,
+body.cgpt-persian-typography .cgpt-rtl kbd,
+body.cgpt-persian-typography .cgpt-rtl samp,
+body.cgpt-persian-typography .cgpt-rtl pre {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas,
+               "Liberation Mono", "Courier New", monospace;
+  line-height:  inherit;
+  word-spacing: normal;
+}
+
 /* ── RTL contenteditable / textarea input ────────────────────────────────── */
 div[contenteditable].cgpt-rtl,
 textarea.cgpt-rtl {

@@ -164,10 +164,28 @@ giving you one-click direction switching without opening the popup.
 |---|---|
 | **Enable extension** | Master on/off — removes all direction overrides when off |
 | **Auto-detect direction** | Classify each paragraph independently (active in Auto mode) |
+| **Improve Persian typography** | Better font stack, line-height 1.9, and word-spacing for RTL text (default: ON) |
 | **Auto** | Auto-detect mode (default) |
 | **Force RTL** | Force every message RTL regardless of content |
 | **Force LTR** | Force every message LTR regardless of content |
 | **Reset to defaults** | Restore all settings to their original values |
+
+---
+
+## Persian / Arabic Typography
+
+When **Improve Persian typography** is enabled (the default), RTL text blocks
+receive a tuned font stack and spacing optimised for Persian and Arabic:
+
+- **Font stack**: Vazirmatn → Vazir → IRANSans → Tahoma → Noto Sans Arabic →
+  system-ui — prefers fonts already installed on the device; no external
+  downloads
+- **Line height**: 1.9 — comfortable reading for multi-line Persian/Arabic text
+- **Word spacing**: 0.03em — visually separates joined words without distorting
+  Arabic ligatures
+
+Code blocks, inline `code`, `kbd`, and `samp` are explicitly excluded and
+always render in the browser's default monospace font at normal spacing.
 
 ---
 

@@ -3,24 +3,28 @@
 const STORAGE_KEY = 'cgptRtlSettings';
 
 const DEFAULTS = {
-  enabled:    true,
-  autoDetect: true,
-  forceMode:  'auto',   // 'auto' | 'rtl' | 'ltr'
+  enabled:           true,
+  autoDetect:        true,
+  forceMode:         'auto',   // 'auto' | 'rtl' | 'ltr'
+  persianTypography: true,
 };
 
 // ── Element refs ──────────────────────────────────────────────────────────────
 
-const togEnabled    = document.getElementById('tog-enabled');
-const togAutodetect = document.getElementById('tog-autodetect');
-const modeBtns      = document.querySelectorAll('.mode-btn');
-const btnReset      = document.getElementById('btn-reset');
-const secDetect     = document.getElementById('sec-detect');
-const secMode       = document.getElementById('sec-mode');
+const togEnabled      = document.getElementById('tog-enabled');
+const togAutodetect   = document.getElementById('tog-autodetect');
+const togTypography   = document.getElementById('tog-typography');
+const modeBtns        = document.querySelectorAll('.mode-btn');
+const btnReset        = document.getElementById('btn-reset');
+const secDetect       = document.getElementById('sec-detect');
+const secMode         = document.getElementById('sec-mode');
+const secTypography   = document.getElementById('sec-typography');
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
 function render(s) {
-  togEnabled.checked = s.enabled;
+  togEnabled.checked    = s.enabled;
+  togTypography.checked = s.persianTypography ?? true;
 
   // Auto-detect toggle is only editable when forceMode is 'auto'
   const autoDetectEditable = s.forceMode === 'auto';
@@ -33,6 +37,7 @@ function render(s) {
   // Grey out dependent sections when the extension is disabled
   secDetect.classList.toggle('muted', !s.enabled || !autoDetectEditable);
   secMode.classList.toggle('muted', !s.enabled);
+  secTypography.classList.toggle('muted', !s.enabled);
 }
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
@@ -59,6 +64,10 @@ togEnabled.addEventListener('change', () => {
 
 togAutodetect.addEventListener('change', () => {
   writeSettings({ autoDetect: togAutodetect.checked });
+});
+
+togTypography.addEventListener('change', () => {
+  writeSettings({ persianTypography: togTypography.checked });
 });
 
 modeBtns.forEach(btn => {

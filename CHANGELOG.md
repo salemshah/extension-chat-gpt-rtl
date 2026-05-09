@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.0] — 2026-05-09
+
+### Added
+
+- **Persian / Arabic typography enhancement** — when enabled, RTL text blocks
+  (paragraphs, list items, headings, table cells) receive a better font stack
+  and improved spacing:
+  - Font stack: Vazirmatn → Vazir → IRANSans → Tahoma → Noto Sans Arabic →
+    system-ui (no external network requests; uses fonts already on the device)
+  - `line-height: 1.9` for more comfortable multi-line Persian/Arabic reading
+  - `word-spacing: 0.03em` to visually separate words
+  - Code, `kbd`, `samp`, and `pre` inside RTL blocks are explicitly excluded
+    so monospace rendering is never affected
+- New popup toggle **"Improve Persian typography"** (default: ON), grouped
+  under a new "Typography" section between Detection and Direction override
+- Body-class approach (`body.cgpt-persian-typography`) — toggling the feature
+  requires no DOM re-scan; a single `classList.toggle` call is sufficient
+- `applyTypographyClass()` helper in `content.js` keeps the body class in sync
+  with both the settings toggle and the master Enable/Disable switch
+
+---
+
 ## [1.1.0] — 2026-05-09
 
 ### Added
