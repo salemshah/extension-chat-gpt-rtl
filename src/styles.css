@@ -143,30 +143,44 @@ textarea.cgpt-input-ltr {
 /* Inserted by JS immediately after button[data-testid="composer-plus-btn"]  */
 /* so it lives inside the composer's own flex row — no fixed/absolute         */
 /* positioning, no overlap with typed text or send/mic/model controls.        */
+/* Parent span/div — ensure it is a flex row that centres its children.      */
+/* Class is added by JS when the button is injected so we don't blindly      */
+/* mutate ChatGPT's DOM; removed again when the button is taken out.         */
+.cgpt-dir-control-inline-parent {
+  display:     inline-flex !important;
+  align-items: center !important;
+}
+
 .cgpt-dir-control-inline {
   /* Hard-isolate from any RTL context the composer may inherit */
   direction:    ltr !important;
   unicode-bidi: isolate !important;
 
-  /* Size to match native composer buttons */
-  display:             inline-flex;
-  align-items:         center;
-  justify-content:     center;
-  min-width:           44px;
-  height:              32px;
-  padding-inline:      10px;
-  margin-inline-start: 4px;
+  /* Match the height and alignment of native ChatGPT composer buttons.
+     !important is required because .composer-btn rules take precedence. */
+  display:          inline-flex !important;
+  align-items:      center !important;
+  justify-content:  center !important;
+  align-self:       center !important;
+  vertical-align:   middle !important;
 
+  height:           40px !important;
+  min-height:       40px !important;
+  line-height:      1 !important;
+  padding:          0 12px !important;
+  margin-inline-start: 6px !important;
+
+  min-width:    44px;
   border:        1.5px solid #d1d5db;
   border-radius: 8px;
   background:    transparent;
 
   color:          #6b7280;
-  font-size:      12px;
-  font-weight:    600;
+  font-size:      13px !important;
+  font-weight:    600 !important;
   font-family:    inherit;
   letter-spacing: 0.04em;
-  white-space:    nowrap;
+  white-space:    nowrap !important;
   cursor:         pointer;
   user-select:    none;
   flex-shrink:    0;

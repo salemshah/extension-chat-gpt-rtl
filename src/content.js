@@ -333,6 +333,11 @@
     // Place immediately after the + button so it appears in the leading
     // toolbar area, not at the far end near send/mic.
     plusBtn.insertAdjacentElement('afterend', btn);
+
+    // Help the parent align its children so our button sits at the same
+    // vertical midpoint as the + button.  The class is removed when the
+    // button is taken out (see applySettings disabled path).
+    parent.classList.add('cgpt-dir-control-inline-parent');
   }
 
   function handleResize() {
@@ -498,7 +503,12 @@
       safeQSA(document, '.cgpt-rtl, .cgpt-ltr').forEach(clearDir);
       safeQSA(document, '.cgpt-input-rtl, .cgpt-input-ltr').forEach(clearInputDir);
       const ctrl = document.querySelector(`[${DIR_CONTROL_ATTR}]`);
-      if (ctrl) ctrl.remove();
+      if (ctrl) {
+        if (ctrl.parentElement) {
+          ctrl.parentElement.classList.remove('cgpt-dir-control-inline-parent');
+        }
+        ctrl.remove();
+      }
     } else {
       fullScan(); // fullScan calls ensureComposerDirectionControl
     }
