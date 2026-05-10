@@ -51,7 +51,19 @@
   const INIT_DELAY_MS      = 700;
 
   const DIR_MODE_CYCLE  = { auto: 'rtl', rtl: 'ltr', ltr: 'auto' };
-  const DIR_MODE_LABELS = { auto: '⇄ Auto', rtl: '← RTL', ltr: 'LTR →' };
+  const DIR_MODE_LABELS = { auto: '⇄', rtl: 'اب←', ltr: '→ab' };
+
+  const MODE_ARIA_LABELS = {
+    auto: 'Automatic direction detection',
+    rtl:  'Right-to-left mode',
+    ltr:  'Left-to-right mode',
+  };
+
+  const MODE_TITLES = {
+    auto: 'Auto direction (Alt+Shift+A)',
+    rtl:  'Right-to-left (Alt+Shift+R)',
+    ltr:  'Left-to-right (Alt+Shift+L)',
+  };
 
   const DEFAULTS = {
     enabled:           true,
@@ -472,8 +484,8 @@
     if (!el) return;
     const mode = settings.forceMode ?? 'auto';
     el.textContent = DIR_MODE_LABELS[mode] ?? DIR_MODE_LABELS.auto;
-    el.setAttribute('aria-label',
-      `Input direction: ${mode}. Click to switch to ${DIR_MODE_CYCLE[mode]}.`);
+    el.setAttribute('aria-label', MODE_ARIA_LABELS[mode] ?? MODE_ARIA_LABELS.auto);
+    el.title       = MODE_TITLES[mode]      ?? MODE_TITLES.auto;
     el.dataset.mode = mode;
   }
 
@@ -498,7 +510,7 @@
     btn.setAttribute(DIR_CONTROL_ATTR, 'true');
     btn.type      = 'button';
     btn.className = 'composer-btn cgpt-dir-control-inline';
-    btn.title     = 'Cycle input direction: Auto → RTL → LTR → Auto\n(Alt+Shift+R / L / A)';
+    // title and aria-label are set (and updated on each mode change) by syncComposerControl.
 
     syncComposerControl(btn);
 

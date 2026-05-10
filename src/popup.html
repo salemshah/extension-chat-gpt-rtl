@@ -106,7 +106,14 @@
     .toggle input:disabled ~ .toggle-thumb { opacity: 0.4; }
 
     /* ── Mode buttons ── */
-    .mode-group { display: flex; gap: 6px; margin-top: 1px; }
+    /* direction: ltr keeps the button group and symbol rendering consistent
+       regardless of the popup's current language direction (RTL/LTR). */
+    .mode-group {
+      display: flex;
+      gap: 6px;
+      margin-top: 1px;
+      direction: ltr;
+    }
 
     .mode-btn {
       flex: 1;
@@ -115,20 +122,38 @@
       border-radius: 8px;
       background: #fff;
       color: #555;
-      font-size: 12px;
-      font-weight: 500;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
       cursor: pointer;
       text-align: center;
       transition: border-color 0.15s, background 0.15s, color 0.15s;
       line-height: 1;
+      /* Isolate bidi so اب← and →ab render as intended */
+      direction: ltr;
+      unicode-bidi: isolate;
     }
 
-    .mode-btn:hover:not(:disabled) { border-color: #10a37f; color: #10a37f; }
+    /* Per-mode hover colours */
+    .mode-btn[data-mode="auto"]:hover:not(:disabled) { border-color: #9ca3af; color: #6b7280; }
+    .mode-btn[data-mode="rtl"]:hover:not(:disabled)  { border-color: #10a37f; color: #10a37f; }
+    .mode-btn[data-mode="ltr"]:hover:not(:disabled)  { border-color: #3b82f6; color: #3b82f6; }
 
-    .mode-btn.active {
+    /* Per-mode active (selected) state — subtle tinted fill */
+    .mode-btn[data-mode="auto"].active {
+      border-color: #9ca3af;
+      background:   rgba(156, 163, 175, 0.15);
+      color:        #4b5563;
+    }
+    .mode-btn[data-mode="rtl"].active {
       border-color: #10a37f;
-      background: #10a37f;
-      color: #fff;
+      background:   rgba(16, 163, 127, 0.12);
+      color:        #10a37f;
+    }
+    .mode-btn[data-mode="ltr"].active {
+      border-color: #3b82f6;
+      background:   rgba(59, 130, 246, 0.12);
+      color:        #3b82f6;
     }
 
     .mode-btn:disabled { opacity: 0.38; cursor: not-allowed; }
@@ -298,9 +323,12 @@
   <div class="section" id="sec-mode">
     <div class="section-title" data-i18n="overrideTitle">تغییر اجباری جهت</div>
     <div class="mode-group">
-      <button class="mode-btn" data-mode="auto" data-i18n="modeAuto">خودکار</button>
-      <button class="mode-btn" data-mode="rtl"  data-i18n="modeRtl">RTL اجباری</button>
-      <button class="mode-btn" data-mode="ltr"  data-i18n="modeLtr">LTR اجباری</button>
+      <button class="mode-btn" data-mode="auto" data-i18n="modeAuto"
+              aria-label="Automatic direction detection" title="Auto direction (Alt+Shift+A)">⇄</button>
+      <button class="mode-btn" data-mode="rtl"  data-i18n="modeRtl"
+              aria-label="Right-to-left mode" title="Right-to-left (Alt+Shift+R)">اب←</button>
+      <button class="mode-btn" data-mode="ltr"  data-i18n="modeLtr"
+              aria-label="Left-to-right mode" title="Left-to-right (Alt+Shift+L)">→ab</button>
     </div>
   </div>
 

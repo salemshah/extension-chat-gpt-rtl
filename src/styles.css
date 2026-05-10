@@ -264,15 +264,15 @@ textarea.cgpt-input-ltr {
   align-self:       center !important;
   vertical-align:   middle !important;
 
-  height:           40px !important;
-  min-height:       40px !important;
+  height:           32px !important;
+  min-height:       32px !important;
   line-height:      1 !important;
   padding:          0 12px !important;
   margin-inline-start: 6px !important;
 
   min-width:    44px;
   border:        1.5px solid #d1d5db;
-  border-radius: 8px;
+  border-radius: 50px;
   background:    transparent;
 
   color:          #6b7280;
@@ -304,12 +304,18 @@ textarea.cgpt-input-ltr {
   outline-offset: 2px;
 }
 
-/* Active (non-auto) mode — highlight in ChatGPT green */
-.cgpt-dir-control-inline[data-mode="rtl"],
-.cgpt-dir-control-inline[data-mode="ltr"] {
+/* RTL mode active — green tint */
+.cgpt-dir-control-inline[data-mode="rtl"] {
   color:        #10a37f;
   border-color: #10a37f;
   background:   rgba(16, 163, 127, 0.09);
+}
+
+/* LTR mode active — blue tint */
+.cgpt-dir-control-inline[data-mode="ltr"] {
+  color:        #3b82f6;
+  border-color: #3b82f6;
+  background:   rgba(59, 130, 246, 0.09);
 }
 
 /* Dark mode */
@@ -324,10 +330,14 @@ html.dark .cgpt-dir-control-inline:hover,
   border-color: #10a37f;
 }
 html.dark .cgpt-dir-control-inline[data-mode="rtl"],
-html.dark .cgpt-dir-control-inline[data-mode="ltr"],
-.dark .cgpt-dir-control-inline[data-mode="rtl"],
-.dark .cgpt-dir-control-inline[data-mode="ltr"] {
+.dark .cgpt-dir-control-inline[data-mode="rtl"] {
   color:        #10a37f;
   border-color: #10a37f;
   background:   rgba(16, 163, 127, 0.13);
+}
+html.dark .cgpt-dir-control-inline[data-mode="ltr"],
+.dark .cgpt-dir-control-inline[data-mode="ltr"] {
+  color:        #60a5fa;
+  border-color: #60a5fa;
+  background:   rgba(96, 165, 250, 0.13);
 }
