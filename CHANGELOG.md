@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.0] — 2026-05-10
+
+### Added
+
+- **Popup language selector** — a dropdown in the popup lets users choose the
+  UI language without reloading the extension; the selection is saved in
+  `chrome.storage.sync` under the key `popupLanguage`
+- **Persian is the default popup language** — all popup labels render in
+  Persian (فارسی) on first install; users can switch to English or Arabic at
+  any time
+- **Arabic (ar) popup translation** — full translation of all popup labels
+- **Popup direction** follows the selected language: Persian and Arabic use
+  `dir="rtl"`, English uses `dir="ltr"`; keyboard shortcut key combos always
+  stay LTR regardless of popup direction
+- **Reset to defaults** now also resets the popup language to Persian
+
+---
+
 ## [1.3.0] — 2026-05-09
 
 ### Changed

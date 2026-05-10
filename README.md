@@ -164,13 +164,29 @@ switching without opening the popup.
 
 | Control | Description |
 |---|---|
+| **Language selector** | Choose the popup UI language: Persian (فارسی), English, or Arabic (العربية). Default: Persian. Saved across sessions. |
 | **Enable extension** | Master on/off — removes all direction overrides when off |
 | **Auto-detect direction** | Classify each paragraph independently (active in Auto mode) |
 | **Improve Persian typography** | Better font stack, line-height 1.9, and word-spacing for RTL text (default: ON) |
 | **Auto** | Auto-detect mode (default) |
 | **Force RTL** | Force every message RTL regardless of content |
 | **Force LTR** | Force every message LTR regardless of content |
-| **Reset to defaults** | Restore all settings to their original values |
+| **Reset to defaults** | Restore all settings **and popup language** to their original values (language resets to Persian) |
+
+## Popup Language
+
+The popup UI defaults to **Persian (فارسی)** on first install.  Three languages
+are supported:
+
+| Code | Label | Direction |
+|---|---|---|
+| `fa` | فارسی | RTL |
+| `ar` | العربية | RTL |
+| `en` | English | LTR |
+
+Selecting a language updates the popup labels instantly — no reload required.
+The choice is saved in `chrome.storage.sync` under the key `popupLanguage`
+and survives browser restarts and device syncs.
 
 ---
 

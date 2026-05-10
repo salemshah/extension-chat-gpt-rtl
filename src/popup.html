@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,6 +13,13 @@
       font-size: 14px;
       color: #1a1a1a;
       background: #ffffff;
+    }
+
+    /* Persian / Arabic font enhancement when popup is in RTL mode */
+    html[dir="rtl"] body {
+      font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+        "Noto Naskh Arabic", "Noto Sans Arabic", Tahoma, sans-serif;
     }
 
     /* ── Header ── */
@@ -126,6 +133,22 @@
 
     .mode-btn:disabled { opacity: 0.38; cursor: not-allowed; }
 
+    /* ── Language selector ── */
+    .lang-select {
+      border: 1.5px solid #e2e2e2;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 12.5px;
+      color: #555;
+      background: #fff;
+      cursor: pointer;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .lang-select:hover,
+    .lang-select:focus { border-color: #10a37f; color: #10a37f; }
+
     /* ── Keyboard shortcuts ── */
     .shortcut-list { display: flex; flex-direction: column; gap: 5px; }
 
@@ -138,7 +161,14 @@
 
     .shortcut-label { color: #555; }
 
-    .shortcut-keys { display: flex; gap: 3px; align-items: center; }
+    /* Key combos are always LTR regardless of popup direction */
+    .shortcut-keys {
+      display: flex;
+      gap: 3px;
+      align-items: center;
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
 
     kbd {
       display: inline-block;
@@ -198,19 +228,31 @@
 <div class="header">
   <div class="header-logo">←→</div>
   <div>
-    <div class="header-title">ChatGPT RTL Support</div>
-    <div class="header-sub">Persian · Arabic · Hebrew · Urdu</div>
+    <div class="header-title" data-i18n="headerTitle">پشتیبانی RTL در ChatGPT</div>
+    <div class="header-sub"   data-i18n="headerSub">فارسی · عربی · عبری · اردو</div>
   </div>
 </div>
 
 <div class="body">
 
+  <!-- Language selector -->
+  <div class="section" id="sec-lang">
+    <div class="row">
+      <div class="row-label" data-i18n="langLabel">زبان</div>
+      <select id="sel-lang" class="lang-select">
+        <option value="fa">فارسی</option>
+        <option value="en">English</option>
+        <option value="ar">العربية</option>
+      </select>
+    </div>
+  </div>
+
   <!-- Master switch -->
   <div class="section" id="sec-main">
     <div class="row">
       <div>
-        <div class="row-label">Enable extension</div>
-        <div class="row-sub">Apply RTL direction on ChatGPT</div>
+        <div class="row-label" data-i18n="enableLabel">فعال‌سازی افزونه</div>
+        <div class="row-sub"   data-i18n="enableSub">اعمال جهت RTL در ChatGPT</div>
       </div>
       <label class="toggle">
         <input type="checkbox" id="tog-enabled">
@@ -222,11 +264,11 @@
 
   <!-- Auto-detect -->
   <div class="section" id="sec-detect">
-    <div class="section-title">Detection</div>
+    <div class="section-title" data-i18n="detectionTitle">تشخیص</div>
     <div class="row">
       <div>
-        <div class="row-label">Auto-detect direction</div>
-        <div class="row-sub">Classifies each message individually</div>
+        <div class="row-label" data-i18n="autoDetectLabel">تشخیص خودکار جهت</div>
+        <div class="row-sub"   data-i18n="autoDetectSub">هر پیام را به‌صورت جداگانه دسته‌بندی می‌کند</div>
       </div>
       <label class="toggle">
         <input type="checkbox" id="tog-autodetect">
@@ -238,11 +280,11 @@
 
   <!-- Persian / Arabic typography -->
   <div class="section" id="sec-typography">
-    <div class="section-title">Typography</div>
+    <div class="section-title" data-i18n="typographyTitle">تایپوگرافی</div>
     <div class="row">
       <div>
-        <div class="row-label">Improve Persian typography</div>
-        <div class="row-sub">Better font &amp; spacing for RTL text</div>
+        <div class="row-label" data-i18n="typographyLabel">بهبود تایپوگرافی فارسی</div>
+        <div class="row-sub"   data-i18n="typographySub">فونت و فاصله‌گذاری بهتر برای متن RTL</div>
       </div>
       <label class="toggle">
         <input type="checkbox" id="tog-typography">
@@ -254,32 +296,32 @@
 
   <!-- Direction override -->
   <div class="section" id="sec-mode">
-    <div class="section-title">Direction override</div>
+    <div class="section-title" data-i18n="overrideTitle">تغییر اجباری جهت</div>
     <div class="mode-group">
-      <button class="mode-btn" data-mode="auto">Auto</button>
-      <button class="mode-btn" data-mode="rtl">Force RTL</button>
-      <button class="mode-btn" data-mode="ltr">Force LTR</button>
+      <button class="mode-btn" data-mode="auto" data-i18n="modeAuto">خودکار</button>
+      <button class="mode-btn" data-mode="rtl"  data-i18n="modeRtl">RTL اجباری</button>
+      <button class="mode-btn" data-mode="ltr"  data-i18n="modeLtr">LTR اجباری</button>
     </div>
   </div>
 
   <!-- Keyboard shortcuts (display-only) -->
   <div class="section" id="sec-shortcuts">
-    <div class="section-title">Keyboard shortcuts</div>
+    <div class="section-title" data-i18n="shortcutsTitle">میانبرهای صفحه‌کلید</div>
     <div class="shortcut-list">
       <div class="shortcut-row">
-        <span class="shortcut-label">Force RTL</span>
+        <span class="shortcut-label" data-i18n="shortcutRtl">RTL اجباری</span>
         <span class="shortcut-keys">
           <kbd>Alt</kbd><span class="shortcut-sep">+</span><kbd>Shift</kbd><span class="shortcut-sep">+</span><kbd>R</kbd>
         </span>
       </div>
       <div class="shortcut-row">
-        <span class="shortcut-label">Force LTR</span>
+        <span class="shortcut-label" data-i18n="shortcutLtr">LTR اجباری</span>
         <span class="shortcut-keys">
           <kbd>Alt</kbd><span class="shortcut-sep">+</span><kbd>Shift</kbd><span class="shortcut-sep">+</span><kbd>L</kbd>
         </span>
       </div>
       <div class="shortcut-row">
-        <span class="shortcut-label">Auto mode</span>
+        <span class="shortcut-label" data-i18n="shortcutAuto">حالت خودکار</span>
         <span class="shortcut-keys">
           <kbd>Alt</kbd><span class="shortcut-sep">+</span><kbd>Shift</kbd><span class="shortcut-sep">+</span><kbd>A</kbd>
         </span>
@@ -289,12 +331,12 @@
 
   <!-- Reset -->
   <div class="section-reset">
-    <button class="btn-reset" id="btn-reset">Reset to defaults</button>
+    <button class="btn-reset" id="btn-reset" data-i18n="resetBtn">بازنشانی به پیش‌فرض</button>
   </div>
 
 </div>
 
-<div class="footer">v1.3.0 &nbsp;·&nbsp; No tracking &nbsp;·&nbsp; No analytics</div>
+<div class="footer">v1.4.0 &nbsp;·&nbsp; <span data-i18n="footerNoTracking">بدون ردیابی</span> &nbsp;·&nbsp; <span data-i18n="footerNoAnalytics">بدون تحلیل</span></div>
 
 <script src="popup.js"></script>
 </body>
