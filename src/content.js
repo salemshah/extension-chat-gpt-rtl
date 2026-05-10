@@ -46,8 +46,9 @@
   const STORAGE_KEY      = 'cgptRtlSettings';
   const DIR_CONTROL_ATTR = 'data-cgpt-dir-control';
   const RTL_THRESHOLD    = 0.30;
-  const DEBOUNCE_MS      = 160;
-  const INIT_DELAY_MS    = 700;
+  const DEBOUNCE_MS        = 160;  // container-level scan (structural changes)
+  const STREAM_DEBOUNCE_MS = 80;   // block-level scan (streaming characterData)
+  const INIT_DELAY_MS      = 700;
 
   const DIR_MODE_CYCLE  = { auto: 'rtl', rtl: 'ltr', ltr: 'auto' };
   const DIR_MODE_LABELS = { auto: '⇄ Auto', rtl: '← RTL', ltr: 'LTR →' };
@@ -82,6 +83,7 @@
   let settings    = { ...DEFAULTS };
   let settingsGen = 0;          // bumped on every settings change; invalidates textCache
   let scanTimer     = null;
+  let blockTimer    = null;     // separate timer for streaming block-level scan
   let domObserver   = null;
   let composerTimer = null;
   let initialized   = false;      // guards against double-init on SPA re-entry
@@ -93,8 +95,12 @@
   // Both must match for the fast-path skip to fire.
   const textCache = new WeakMap();
 
-  // Containers collected during the current debounce window (targeted scan).
+  // Container-level queue: structural changes (childList mutations → full container scan).
   const pendingContainers = new Set();
+
+  // Block-level queue: streaming text updates (characterData mutations → per-block scan).
+  // Kept separate so rapid token delivery does not starve the container queue.
+  const pendingBlocks = new Set();
 
   // ── DOM selectors ─────────────────────────────────────────────────────────
   // Prefer data-attribute / semantic selectors; class names are fragile.
@@ -158,7 +164,10 @@
 
   // Returns the element's text with <pre>/<code> subtrees removed.
   // Called only when the fast-path cache check fails.
+  // Fast exit: if no code children exist (common during streaming) we skip the
+  // expensive cloneNode and return textContent directly.
   function textWithoutCode(el) {
+    if (!el.querySelector('pre, code, kbd, samp')) return el.textContent ?? '';
     const clone = el.cloneNode(true);
     safeQSA(clone, 'pre, code, kbd, samp').forEach(n => n.remove());
     return clone.textContent ?? '';
@@ -666,6 +675,29 @@
     }, DEBOUNCE_MS);
   }
 
+  // ── Block-level streaming scan ────────────────────────────────────────────
+  // Fires at STREAM_DEBOUNCE_MS (80 ms) — faster than the container scan so
+  // that streaming RTL blocks get classified before the next token batch lands.
+  // Only processes the individual p/li/… elements that received characterData
+  // mutations; never re-scans entire message containers.
+
+  function scheduleBlockScan() {
+    clearTimeout(blockTimer);
+    blockTimer = setTimeout(() => {
+      if (pendingBlocks.size === 0) return;
+      if (!settings.enabled) { pendingBlocks.clear(); return; }
+
+      const targets = new Set(pendingBlocks);
+      pendingBlocks.clear();
+
+      targets.forEach(el => {
+        if (!document.contains(el)) return; // removed between schedule and fire
+        if (el.tagName === 'PRE') processPreBlock(el);
+        else processBlock(el);
+      });
+    }, STREAM_DEBOUNCE_MS);
+  }
+
   // ── MutationObserver ──────────────────────────────────────────────────────
   // Intentionally omits `attributes: true` — our own setAttribute calls must
   // not create feedback loops.
@@ -675,41 +707,68 @@
     return node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
   }
 
-  function findAffectedContainers(mutations) {
-    const found = new Set();
+  // Returns { blocks: Set<Element>, containers: Set<Element> }
+  //   blocks     — individual BLOCK_SEL elements from characterData mutations
+  //                (streaming text updates — processed at 80 ms)
+  //   containers — MSG_SEL containers from childList mutations
+  //                (structural changes — processed at 160 ms)
+  function findAffectedMutations(mutations) {
+    const blocks     = new Set();
+    const containers = new Set();
+
     for (const m of mutations) {
       if (m.type === 'characterData') {
-        // m.target is always a TextNode for characterData
+        // m.target is always a TextNode; resolve to its parent element.
         const el = m.target.parentElement;
-        if (el) {
+        if (!el) continue;
+        // Text inside <pre>/<code> is handled at the pre-block level; skip here.
+        if (safeClosest(el, 'pre, code')) continue;
+        // Walk up to the nearest inline block ancestor (p, li, h1, …).
+        const block = el.matches(BLOCK_SEL) ? el : safeClosest(el, BLOCK_SEL);
+        if (block) {
+          blocks.add(block);
+        } else {
+          // No BLOCK_SEL ancestor — fall back to a full container scan so
+          // plain-text user messages (no <p> children) are still processed.
           const c = safeClosest(el, MSG_SEL);
-          if (c) found.add(c);
+          if (c) containers.add(c);
         }
       } else if (m.type === 'childList') {
         for (const node of m.addedNodes) {
           const el = toElement(node);
           if (el && el.nodeType === Node.ELEMENT_NODE) {
             const c = safeClosest(el, MSG_SEL);
-            if (c) found.add(c);
+            if (c) containers.add(c);
           }
         }
       }
     }
-    return found;
+
+    return { blocks, containers };
   }
 
   function startObserver() {
     if (domObserver) domObserver.disconnect();
     domObserver = new MutationObserver(mutations => {
-      const containers = findAffectedContainers(mutations);
-      if (containers.size === 0) {
-        // Mutations outside the message area — could be SPA navigation that
-        // unmounted the composer. Re-check for the direction control.
+      const { blocks, containers } = findAffectedMutations(mutations);
+
+      if (blocks.size === 0 && containers.size === 0) {
+        // Mutations outside the message area — SPA navigation, composer re-render, etc.
         scheduleComposerCheck();
         return;
       }
-      containers.forEach(c => pendingContainers.add(c));
-      scheduleTargetedScan();
+
+      // Fast path: streaming text changes — re-classify only the mutated blocks.
+      if (blocks.size > 0) {
+        blocks.forEach(b => pendingBlocks.add(b));
+        scheduleBlockScan();
+      }
+
+      // Structural path: new nodes added — re-scan the whole container.
+      if (containers.size > 0) {
+        containers.forEach(c => pendingContainers.add(c));
+        scheduleTargetedScan();
+      }
     });
     domObserver.observe(document.body, {
       childList: true, subtree: true, characterData: true,
