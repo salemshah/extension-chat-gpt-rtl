@@ -66,6 +66,106 @@ code[class*="language-"] {
   unicode-bidi: normal !important;
 }
 
+/* ── Natural-language RTL blocks inside <pre>/<code> ────────────────────── */
+/* ChatGPT occasionally wraps natural Persian/Arabic explanations in a        */
+/* <pre><code> container even though they are not code.  classifyPreBlock()   */
+/* in content.js detects this and adds .cgpt-natural-rtl-block to the <pre>. */
+.cgpt-natural-rtl-block {
+  direction:      rtl !important;
+  text-align:     right !important;
+  /* unicode-bidi:plaintext uses first-strong-character algorithm so that
+     inline LTR runs (e.g. "npm install react" mid-sentence) are rendered
+     LTR automatically by the browser's built-in bidi engine — no JS span
+     injection required. */
+  unicode-bidi:   plaintext !important;
+  letter-spacing: normal !important;
+  word-spacing:   normal !important;
+  white-space:    pre-wrap !important;
+
+  /* Override the monospace font that <pre> inherits */
+  font-family:
+    system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Tahoma,
+    "Noto Naskh Arabic", "Noto Sans Arabic",
+    Arial, sans-serif !important;
+}
+
+.cgpt-natural-rtl-block code {
+  direction:    rtl !important;
+  unicode-bidi: plaintext !important;
+  font-family:  inherit !important;
+}
+
+/* Keep copy-button and any other interactive controls inside the block LTR */
+.cgpt-natural-rtl-block button,
+.cgpt-natural-rtl-block [role="button"] {
+  direction:    ltr !important;
+  unicode-bidi: normal !important;
+}
+
+/* ── Edit-message textarea direction ────────────────────────────────────── */
+/* CSS fallback classes applied by applyEditDir() on the edit-mode textarea. */
+/* Inline styles (also set by JS) take precedence over these, so the classes */
+/* act as a safety net if the inline write is ever stripped.                  */
+textarea[aria-label="Edit message"].cgpt-edit-input-rtl,
+textarea[aria-label*="Edit message"].cgpt-edit-input-rtl {
+  direction:    rtl !important;
+  text-align:   right !important;
+  unicode-bidi: plaintext !important;
+}
+
+textarea[aria-label="Edit message"].cgpt-edit-input-ltr,
+textarea[aria-label*="Edit message"].cgpt-edit-input-ltr {
+  direction:    ltr !important;
+  text-align:   left !important;
+  unicode-bidi: plaintext !important;
+}
+
+/* ── #code-block-viewer classification ──────────────────────────────────── */
+/* ChatGPT's code-block viewer element is classified as a whole by            */
+/* processCodeBlockViewer() so that toolbar text and language labels outside  */
+/* the <pre> contribute to the code-vs-prose decision.                        */
+
+/* Real code — enforce LTR throughout the viewer and its pre/code children.  */
+.cgpt-code-viewer-code,
+.cgpt-code-viewer-code pre,
+.cgpt-code-viewer-code code {
+  direction:    ltr !important;
+  text-align:   left !important;
+  unicode-bidi: normal !important;
+}
+
+/* Persian/Arabic prose falsely rendered inside the code viewer.              */
+/* The viewer container and its pre/code children become RTL prose.           */
+.cgpt-code-viewer-prose {
+  direction:      rtl !important;
+  text-align:     right !important;
+  unicode-bidi:   plaintext !important;
+  white-space:    pre-wrap !important;
+  font-family:
+    system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Tahoma,
+    "Noto Naskh Arabic", "Noto Sans Arabic",
+    Arial, sans-serif !important;
+}
+
+.cgpt-code-viewer-prose pre,
+.cgpt-code-viewer-prose code {
+  direction:    rtl !important;
+  unicode-bidi: plaintext !important;
+  font-family:  inherit !important;
+}
+
+/* Copy button, toolbar, and other interactive controls inside the prose      */
+/* viewer must stay LTR so their icons/labels are never mirrored.             */
+.cgpt-code-viewer-prose button,
+.cgpt-code-viewer-prose [role="button"],
+.cgpt-code-viewer-prose [role="toolbar"],
+.cgpt-code-viewer-prose [role="menuitem"] {
+  direction:    ltr !important;
+  unicode-bidi: normal !important;
+}
+
 /* ── Persian / Arabic typography enhancement ─────────────────────────────── */
 /* Active only when body carries .cgpt-persian-typography (toggled by JS).    */
 /* Targets semantic RTL blocks — paragraphs, list items, headings, table      */

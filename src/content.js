@@ -66,6 +66,17 @@
   const RTL_RE = /[֐-׿؀-ۿ܀-ݏݐ-ݿ߀-߿ࢠ-ࣿיִ-ﭏﭐ-﷿ﹰ-﻿]/g;
   const LTR_RE = /[A-Za-zÀ-ɏͰ-ϿЀ-ӿ]/g;
 
+  // ── Code-signal regexes (no /g — presence-only tests) ────────────────────
+  // Used by classifyPreBlock to score how "code-like" a <pre> block is.
+  // Defined without /g so .test() does not advance lastIndex between calls.
+  const CS_SHELL_RE   = /^[$#>]\s/m;
+  const CS_PKG_RE     = /^(?:npm|yarn|pnpm|pip3?|docker|git|cd|ls|mkdir|rm|cp|mv|curl|wget|sudo)\s/m;
+  const CS_STRUCT_RE  = /[{}]/;
+  const CS_KW_RE      = /\b(?:function|class|const|let|var|import|export|def|return|async|await|typeof|instanceof|null|undefined)\b/;
+  const CS_OP_RE      = /(?:=>|===?|!==?|\+=|-=|\*=|\/=|&&|\|\|)/;
+  const CS_PATH_RE    = /\S+\.(?:js|ts|jsx|tsx|py|sh|bash|json|css|html|xml|yaml|yml|go|rs|java|cpp|rb|php)\b/i;
+  const CS_INDENT_RE  = /^[ \t]{2,}\S/m;
+
   // ── State ─────────────────────────────────────────────────────────────────
 
   let settings    = { ...DEFAULTS };
@@ -105,6 +116,15 @@
     'textarea[data-id]',
     'textarea[placeholder]',
   ].join(', ');
+
+  // ChatGPT code-block viewer element — classified independently so it can
+  // override the generic pre/code rules when it contains prose, not real code.
+  const CODE_BLOCK_VIEWER_SEL = '#code-block-viewer, [id="code-block-viewer"]';
+
+  // Edit-message textarea selector.  The exact aria-label match covers the
+  // common case; the substring match covers localised or versioned variants.
+  const EDIT_TEXTAREA_SEL =
+    'textarea[aria-label="Edit message"], textarea[aria-label*="Edit message"]';
 
   // ── Safe DOM helpers ──────────────────────────────────────────────────────
   // Invalid or future selectors must not crash the extension.
@@ -149,6 +169,103 @@
     if (settings.forceMode === 'ltr') return 'ltr';
     if (!settings.autoDetect) return null;
     return detectDirection(text);
+  }
+
+  // ── Pre-block classification ──────────────────────────────────────────────
+  // Returns 'code-ltr'   — real code; keep LTR.
+  // Returns 'natural-rtl' — Persian/Arabic prose falsely wrapped in pre/code.
+  //
+  // Decision path:
+  //  1. RTL character ratio must be >= RTL_THRESHOLD, otherwise it is code or
+  //     LTR prose, and we return 'code-ltr' immediately.
+  //  2. If RTL is dominant we count code-structure signals (shell prompts,
+  //     programming keywords, operators, …).  A score >= 4 means the block is
+  //     still real code (e.g. a file with Persian comments) → 'code-ltr'.
+  //  3. If the score is low, the block is natural language → 'natural-rtl'.
+  //
+  // Key discriminator: "برای نصب React از npm install React استفاده کن." has
+  // "npm" mid-sentence, NOT at line-start.  CS_PKG_RE anchors to ^ so that
+  // embedded commands inside prose do not trigger the code signal.
+
+  // Scores a plain text string against structural code signals.
+  // Returns true when the text looks like real code (score >= 4).
+  // Shared by classifyPreBlock and processCodeBlockViewer so the exact same
+  // heuristic applies regardless of which DOM entry point invokes it.
+  function isProbablyCode(text) {
+    let score = 0;
+    if (CS_SHELL_RE.test(text))  score += 4;   // $, #, > at line start
+    if (CS_PKG_RE.test(text))    score += 4;   // npm/docker/git… at line start
+    if (CS_STRUCT_RE.test(text)) score += 3;   // { or }
+    if (CS_KW_RE.test(text))     score += 3;   // programming keyword
+    if (CS_OP_RE.test(text))     score += 3;   // operator sequence
+    if (CS_PATH_RE.test(text))   score += 2;   // file.ext reference
+    if (CS_INDENT_RE.test(text)) {
+      const indentedLines = text.split('\n').filter(l => /^[ \t]{2,}\S/.test(l)).length;
+      if (indentedLines >= 2) score += 2;      // consistently indented = code
+    }
+    if (text.split('\n').filter(l => l.trim()).length > 5) score += 2; // long multi-line
+    return score >= 4;
+  }
+
+  function classifyPreBlock(pre) {
+    const text = (pre.textContent ?? '').trim();
+    if (!text) return 'code-ltr';
+
+    // Analyse up to 500 chars — enough signal without scanning huge code files.
+    const sample = text.length > 500 ? text.slice(0, 500) : text;
+
+    // No RTL chars → code or LTR natural prose; never a false-positive RTL block.
+    const rtlM = sample.match(RTL_RE);
+    if (!rtlM) return 'code-ltr';
+
+    const ltrM  = sample.match(LTR_RE);
+    const rtlN  = rtlM.length;
+    const total = rtlN + (ltrM ? ltrM.length : 0);
+    if (total === 0 || rtlN / total < RTL_THRESHOLD) return 'code-ltr';
+
+    return isProbablyCode(text) ? 'code-ltr' : 'natural-rtl';
+  }
+
+  // Applies the correct direction to a single <pre> element.
+  // Replaces the old "blindly lock all pre to LTR" loop.
+  function processPreBlock(pre) {
+    // Pre blocks inside #code-block-viewer are classified at the viewer level
+    // by processCodeBlockViewer so that the viewer's overall content drives
+    // the decision, not just the individual <pre>.
+    if (safeClosest(pre, CODE_BLOCK_VIEWER_SEL)) return;
+
+    const text = pre.textContent ?? '';
+    if (!text.trim()) {
+      if (!pre.classList.contains('cgpt-code-ltr')) {
+        pre.setAttribute('dir', 'ltr');
+        pre.classList.add('cgpt-code-ltr');
+      }
+      return;
+    }
+
+    // Cache key: first 500 chars of content + settings generation.
+    const cacheKey = text.slice(0, 500);
+    const cached   = textCache.get(pre);
+    if (cached && cached.raw === cacheKey && cached.gen === settingsGen) return;
+    textCache.set(pre, { raw: cacheKey, gen: settingsGen });
+
+    // Natural-RTL classification only active when auto-detect is on, and we are
+    // in auto mode.  Force-LTR always keeps code LTR; force-RTL lets natural
+    // language pre blocks become RTL via the same condition.
+    const isNaturalRtl =
+      settings.autoDetect &&
+      settings.forceMode !== 'ltr' &&
+      classifyPreBlock(pre) === 'natural-rtl';
+
+    if (isNaturalRtl) {
+      pre.classList.remove('cgpt-code-ltr');
+      pre.classList.add('cgpt-natural-rtl-block');
+      pre.setAttribute('dir', 'rtl');
+    } else {
+      pre.classList.remove('cgpt-natural-rtl-block');
+      if (pre.getAttribute('dir') !== 'ltr') pre.setAttribute('dir', 'ltr');
+      if (!pre.classList.contains('cgpt-code-ltr')) pre.classList.add('cgpt-code-ltr');
+    }
   }
 
   // ── Apply / remove direction ──────────────────────────────────────────────
@@ -230,13 +347,8 @@
   }
 
   function processMessageContainer(container) {
-    // 1. Lock every <pre> to LTR.  Skip the write when already done.
-    safeQSA(container, 'pre').forEach(pre => {
-      if (pre.getAttribute('dir') !== 'ltr') {
-        pre.setAttribute('dir', 'ltr');
-        pre.classList.add('cgpt-code-ltr');
-      }
-    });
+    // 1. Classify each <pre>: real code → lock LTR; natural RTL prose → apply RTL.
+    safeQSA(container, 'pre').forEach(processPreBlock);
 
     // 2. Process individual block elements (paragraphs, list items, …).
     const blocks = safeQSA(container, BLOCK_SEL).filter(
@@ -270,6 +382,72 @@
 
   function processAllMessages() {
     safeQSA(document, MSG_SEL).forEach(processMessageContainer);
+  }
+
+  // ── Code-block viewer ─────────────────────────────────────────────────────
+  // #code-block-viewer is ChatGPT's dedicated code-rendering container.
+  // It is classified at the viewer level (not just the inner <pre>) so that
+  // the complete text content — including toolbar labels and language hints
+  // that appear outside the <pre> — informs the code-vs-prose decision.
+  // The result OVERRIDES whatever processPreBlock would apply to the inner pre.
+
+  function processCodeBlockViewer(viewer) {
+    const text = (viewer.textContent ?? '').trim();
+
+    // Cache keyed on the viewer element itself (not the inner pre).
+    const cacheKey = text.slice(0, 500);
+    const cached   = textCache.get(viewer);
+    if (cached && cached.raw === cacheKey && cached.gen === settingsGen) return;
+    textCache.set(viewer, { raw: cacheKey, gen: settingsGen });
+
+    // Always clear stale markers before re-classifying.
+    viewer.classList.remove('cgpt-code-viewer-code', 'cgpt-code-viewer-prose');
+
+    if (!settings.enabled) return;
+
+    // Compute RTL dominance over the first 500 chars of viewer text.
+    const sample = cacheKey;
+    const rtlM   = sample.match(RTL_RE);
+    let isRtlDominant = false;
+    if (rtlM) {
+      const ltrM  = sample.match(LTR_RE);
+      const rtlN  = rtlM.length;
+      const total = rtlN + (ltrM ? ltrM.length : 0);
+      isRtlDominant = total > 0 && rtlN / total >= RTL_THRESHOLD;
+    }
+
+    // Treat as real code when:
+    //  - No RTL dominance (most code files)
+    //  - Auto-detect is off
+    //  - User forced LTR
+    //  - Content passes isProbablyCode scoring despite RTL dominance
+    const treatAsCode =
+      !isRtlDominant         ||
+      !settings.autoDetect   ||
+      settings.forceMode === 'ltr' ||
+      isProbablyCode(text);
+
+    if (treatAsCode) {
+      viewer.classList.add('cgpt-code-viewer-code');
+      if (viewer.getAttribute('dir') !== 'ltr') viewer.setAttribute('dir', 'ltr');
+      safeQSA(viewer, 'pre').forEach(pre => {
+        pre.classList.remove('cgpt-natural-rtl-block');
+        if (pre.getAttribute('dir') !== 'ltr') pre.setAttribute('dir', 'ltr');
+        if (!pre.classList.contains('cgpt-code-ltr')) pre.classList.add('cgpt-code-ltr');
+      });
+    } else {
+      viewer.classList.add('cgpt-code-viewer-prose');
+      viewer.setAttribute('dir', 'rtl');
+      safeQSA(viewer, 'pre').forEach(pre => {
+        pre.classList.remove('cgpt-code-ltr');
+        pre.classList.add('cgpt-natural-rtl-block');
+        pre.setAttribute('dir', 'rtl');
+      });
+    }
+  }
+
+  function processAllCodeViewers() {
+    safeQSA(document, CODE_BLOCK_VIEWER_SEL).forEach(processCodeBlockViewer);
   }
 
   // ── Composer direction control ─────────────────────────────────────────────
@@ -349,7 +527,12 @@
 
   function scheduleComposerCheck() {
     clearTimeout(composerTimer);
-    composerTimer = setTimeout(ensureComposerDirectionControl, DEBOUNCE_MS);
+    composerTimer = setTimeout(() => {
+      ensureComposerDirectionControl();
+      // Also catch edit textareas that appear outside message containers
+      // (e.g., on SPA navigation or when ChatGPT re-renders the message area).
+      if (settings.enabled) processAllEditTextareas();
+    }, DEBOUNCE_MS);
   }
 
   // ── Input processing ──────────────────────────────────────────────────────
@@ -364,7 +547,84 @@
   }
 
   function processAllInputs() {
-    safeQSA(document, INPUT_SEL).forEach(processInput);
+    // Exclude edit-message textareas — they are handled by processAllEditTextareas
+    // with per-element listener binding and mirror-span synchronisation.
+    safeQSA(document, INPUT_SEL)
+      .filter(el => !el.matches(EDIT_TEXTAREA_SEL))
+      .forEach(processInput);
+  }
+
+  // ── Edit-message textarea ─────────────────────────────────────────────────
+  // ChatGPT replaces the message content with a <textarea aria-label="Edit
+  // message"> when the user clicks the pencil icon.  This textarea is NOT
+  // matched by INPUT_SEL and must be handled separately:
+  //  - direction is applied via inline style + dir attribute (not CSS class)
+  //  - a mirror <span class="invisible"> next to the textarea is kept in sync
+  //    so ChatGPT's auto-resize logic measures the correct text direction
+  //  - listeners are attached once per element using a dataset flag
+
+  function applyEditDir(textarea) {
+    if (!settings.enabled) { clearEditDir(textarea); return; }
+
+    const text = textarea.value || textarea.textContent || '';
+    const dir  = resolveDir(text);
+
+    if (dir) {
+      const isRtl = dir === 'rtl';
+      textarea.setAttribute('dir', dir);
+      textarea.style.direction   = dir;
+      textarea.style.textAlign   = isRtl ? 'right' : 'left';
+      textarea.style.unicodeBidi = 'plaintext';
+      textarea.classList.add(isRtl    ? 'cgpt-edit-input-rtl' : 'cgpt-edit-input-ltr');
+      textarea.classList.remove(isRtl ? 'cgpt-edit-input-ltr' : 'cgpt-edit-input-rtl');
+
+      // Keep the invisible mirror span in sync so auto-sizing is accurate.
+      const grid   = safeClosest(textarea, '.grid');
+      const mirror = grid ? grid.querySelector('span.invisible') : null;
+      if (mirror) {
+        mirror.setAttribute('dir', dir);
+        mirror.style.direction   = dir;
+        mirror.style.textAlign   = isRtl ? 'right' : 'left';
+        mirror.style.unicodeBidi = 'plaintext';
+      }
+    } else {
+      clearEditDir(textarea);
+    }
+  }
+
+  function clearEditDir(textarea) {
+    textarea.classList.remove('cgpt-edit-input-rtl', 'cgpt-edit-input-ltr');
+    textarea.removeAttribute('dir');
+    textarea.style.direction   = '';
+    textarea.style.textAlign   = '';
+    textarea.style.unicodeBidi = '';
+
+    const grid   = safeClosest(textarea, '.grid');
+    const mirror = grid ? grid.querySelector('span.invisible') : null;
+    if (mirror) {
+      mirror.removeAttribute('dir');
+      mirror.style.direction   = '';
+      mirror.style.textAlign   = '';
+      mirror.style.unicodeBidi = '';
+    }
+  }
+
+  function processEditMessageTextarea(textarea) {
+    if (!settings.enabled) { clearEditDir(textarea); return; }
+
+    // Bind listeners once per element (dataset flag acts as a WeakSet).
+    if (textarea.dataset.cgptEditRtlBound !== 'true') {
+      textarea.dataset.cgptEditRtlBound = 'true';
+      textarea.addEventListener('input',  () => applyEditDir(textarea));
+      textarea.addEventListener('focus',  () => applyEditDir(textarea));
+      textarea.addEventListener('paste',  () => setTimeout(() => applyEditDir(textarea), 0));
+    }
+
+    applyEditDir(textarea);
+  }
+
+  function processAllEditTextareas() {
+    safeQSA(document, EDIT_TEXTAREA_SEL).forEach(processEditMessageTextarea);
   }
 
   // ── Full scan — init and settings changes only ────────────────────────────
@@ -372,7 +632,9 @@
   function fullScan() {
     if (!settings.enabled) return;
     processAllMessages();
+    processAllCodeViewers();
     processAllInputs();
+    processAllEditTextareas();
     ensureComposerDirectionControl();
   }
 
@@ -391,7 +653,9 @@
       const work = () => {
         if (!settings.enabled) return;
         targets.forEach(processMessageContainer);
+        processAllCodeViewers();
         processAllInputs();
+        processAllEditTextareas();
       };
 
       if (typeof requestIdleCallback !== 'undefined') {
@@ -502,6 +766,16 @@
     if (!settings.enabled) {
       safeQSA(document, '.cgpt-rtl, .cgpt-ltr').forEach(clearDir);
       safeQSA(document, '.cgpt-input-rtl, .cgpt-input-ltr').forEach(clearInputDir);
+      safeQSA(document, '.cgpt-natural-rtl-block').forEach(pre => {
+        pre.classList.remove('cgpt-natural-rtl-block');
+        pre.setAttribute('dir', 'ltr');
+        pre.classList.add('cgpt-code-ltr');
+      });
+      safeQSA(document, CODE_BLOCK_VIEWER_SEL).forEach(viewer => {
+        viewer.classList.remove('cgpt-code-viewer-code', 'cgpt-code-viewer-prose');
+        viewer.removeAttribute('dir');
+      });
+      safeQSA(document, EDIT_TEXTAREA_SEL).forEach(clearEditDir);
       const ctrl = document.querySelector(`[${DIR_CONTROL_ATTR}]`);
       if (ctrl) {
         if (ctrl.parentElement) {
